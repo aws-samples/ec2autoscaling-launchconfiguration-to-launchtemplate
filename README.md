@@ -17,7 +17,7 @@ The tool uses the caller's permissions (or [IAM role](https://docs.aws.amazon.co
 ### AWS CloudShell / CLI
 1. Copy lc2lt.py to your local environment.
 ```
-curl -O "https://github.com/aws-samples/ec2autoscaling-launchconfiguration-to-launchtemplate/blob/main/lc2lt.py"
+curl -O "https://raw.githubusercontent.com/aws-samples/ec2autoscaling-launchconfiguration-to-launchtemplate/main/lc2lt.py"
 ```
 2. Execute the script:
 ```
