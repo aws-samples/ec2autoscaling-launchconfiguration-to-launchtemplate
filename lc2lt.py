@@ -1,7 +1,8 @@
 import boto3
+import csv
 import logging
 import sys
-import csv
+
 
 from botocore.exceptions import ClientError
 
@@ -21,27 +22,30 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-# Writes the outcome of the conversion to a CSV logfile
 def write_logfile(file, results):
+    """ Writes the outcome of the conversion to a CSV logfile
+    """
     logger.info('Saving conversion results to file: {}'.format(file))
 
-    data_file = open(file, 'w', newline='')
-    csv_writer = csv.writer(data_file)
-    
-    count = 0
-    for data in results:
-        if count == 0:
-            header = data.keys()
-            csv_writer.writerow(header)
-            count += 1
-        csv_writer.writerow(data.values())
-    
-    data_file.close()
+    try:
+        data_file = open(file, 'w', newline='')
+        csv_writer = csv.writer(data_file)
+        
+        count = 0
+        for data in results:
+            if count == 0:
+                header = data.keys()
+                csv_writer.writerow(header)
+                count += 1
+            csv_writer.writerow(data.values())
+    finally:
+        data_file.close()
 
     return
 
-# Paginates Responses from API Calls.
 def paginate(method, **kwargs):
+    """ Paginates Responses from API Calls.
+    """
     client = method.__self__
 
     try:
@@ -55,11 +59,12 @@ def paginate(method, **kwargs):
         logger.error(error_message)
         raise Exception(error_message)
 
-# TODO: Add support for things other than the default identity
 def get_credentials():
+    """ Gets the AWS credentials for the default identity
+    """
     try:
         sts_client = boto3.client('sts')
-        credentials=sts_client.get_caller_identity()
+        credentials = sts_client.get_caller_identity()
 
         message = "Using credential {arn} for {account}".format(arn=credentials['Arn'],account=credentials['Account'])
         logger.info(message)
@@ -69,10 +74,9 @@ def get_credentials():
         error_message = 'Error getting STS credentials: {}'.format(error)
         print(error_message)
 
-
-
-# Returns the regions enabled for the AWS Account
 def get_regions(account_id):
+    """ Returns the regions enabled for the AWS Account
+    """
     regions = []
     try:
         ec2_client = boto3.client('ec2')
@@ -90,9 +94,9 @@ def get_regions(account_id):
     logger.info(message)
     return regions 
 
-# Returns the lunch configurations on a given region
-# TODO: add the ability to filter out based on tags
 def get_launch_configurations(**kwargs):
+    """ Returns the lunch configurations on a given region
+    """
     try:
         autoscaling_client = boto3.client('autoscaling',**kwargs)
         paginated_response = paginate(autoscaling_client.describe_launch_configurations,PaginationConfig={'PageSize': autoscaling_describe_page_size})
@@ -109,11 +113,9 @@ def get_launch_configurations(**kwargs):
         error_message = 'Error getting Launch Configurations: {}'.format(error)
         print(error_message)
         
-
-
-
-# Returns the converted launch configuration
 def prepare_launch_template_data(launch_configuration, retain_spot_price):
+    """ Returns the converted launch configuration
+    """
 
     launch_template_data={}
 
@@ -137,8 +139,11 @@ def prepare_launch_template_data(launch_configuration, retain_spot_price):
     if launch_configuration['RamdiskId']:
         launch_template_data['RamDiskId']=launch_configuration['RamdiskId']
 
-    if launch_configuration['BlockDeviceMappings']==True:
-        launch_template_data['BlockDeviceMappings']=""    
+    if 'BlockDeviceMappings' in launch_configuration:
+        for bdm in launch_configuration['BlockDeviceMappings']:
+            if 'NoDevice' in bdm:
+                bdm['NoDevice'] = ""
+        launch_template_data['BlockDeviceMappings']=launch_configuration['BlockDeviceMappings']
 
     if 'MetadataOptions' in launch_configuration:
         launch_template_data['MetadataOptions']=launch_configuration['MetadataOptions']
@@ -174,9 +179,9 @@ def prepare_launch_template_data(launch_configuration, retain_spot_price):
 
     return launch_template_data
 
-
-# Creates the Launch Template
 def create_launch_template(launch_configuration,**kwargs):
+    """Creates the Launch Template
+    """
     launch_config_name=launch_configuration['LaunchConfigurationName']
     launch_template_name='N/A'
     launch_template_id='N/A'
@@ -227,7 +232,6 @@ def create_launch_template(launch_configuration,**kwargs):
         }
 
 def main():
-
     credentials=get_credentials()
     account_id=credentials['Account']
     regions=get_regions(account_id)
